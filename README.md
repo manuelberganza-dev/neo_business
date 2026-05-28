@@ -119,6 +119,43 @@ El backend valida:
 
 Los roles admin/superadmin pasan todas las policies internas actuales.
 
+## Tiempo Real Con Action Cable
+
+WebSocket:
+
+```text
+/cable?token=JWT
+```
+
+Los canales tambien respetan tenant y permisos. Si el token no es valido, la conexion se rechaza.
+
+| Canal | Stream | Eventos principales |
+| --- | --- | --- |
+| `InventoryChannel` | Inventario de la tienda | `stock_updated`, `low_stock`, `adjustment_created` |
+| `SalesChannel` | Ventas de la tienda | `sale_created`, `sale_voided`, `daily_total_updated` |
+| `NotificationChannel` | Notificaciones tienda/usuario | `system_alert`, `job_finished`, `ocr_ready`, `purchase_received` |
+| `PosChannel` | Sincronizacion POS | `cash_session_opened`, `cash_session_closed`, `product_price_updated`, `terminal_sync` |
+
+Ejemplo de mensaje recibido:
+
+```json
+{
+  "event": "stock_updated",
+  "payload": {
+    "product_id": 10,
+    "product_name": "Cafe molido 400g",
+    "warehouse_id": 1,
+    "warehouse_name": "Bodega matriz",
+    "movement_type": "sale",
+    "qty": "-2.0",
+    "quantity": "8.0",
+    "min_stock": "2.0",
+    "low_stock": false
+  },
+  "sent_at": "2026-05-28T15:47:01-06:00"
+}
+```
+
 ## Endpoints
 
 Base URL:

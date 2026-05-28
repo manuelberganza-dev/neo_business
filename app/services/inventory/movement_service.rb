@@ -9,7 +9,7 @@ module Inventory
       decimal_qty = BigDecimal(qty.to_s)
       raise ApplicationError.new("Quantity cannot be zero", code: "invalid_quantity") if decimal_qty.zero?
 
-      InventoryItem.transaction do
+      result = InventoryItem.transaction do
         item = locked_inventory_item(product, warehouse)
         new_quantity = item.quantity + decimal_qty
 
@@ -19,7 +19,7 @@ module Inventory
 
         item.update!(quantity: new_quantity)
 
-        StockMovement.create!(
+        movement = StockMovement.create!(
           store: @store,
           product: product,
           warehouse: warehouse,
@@ -31,10 +31,37 @@ module Inventory
           notes: notes,
           occurred_at: Time.current
         )
+
+        [ movement, item ]
       end
+
+      movement, item = result
+      ActiveRecord.after_all_transactions_commit do
+        broadcast_inventory_events(movement, item)
+      end
+      movement
     end
 
     private
+
+    def broadcast_inventory_events(movement, item)
+      payload = {
+        product_id: movement.product_id,
+        product_name: movement.product.name,
+        warehouse_id: movement.warehouse_id,
+        warehouse_name: movement.warehouse.name,
+        movement_id: movement.id,
+        movement_type: movement.movement_type,
+        qty: movement.qty,
+        quantity: item.quantity,
+        min_stock: item.min_stock,
+        low_stock: item.low_stock?
+      }
+
+      Realtime::Broadcaster.inventory(@store, :stock_updated, payload)
+      Realtime::Broadcaster.inventory(@store, :low_stock, payload) if item.low_stock?
+      Realtime::Broadcaster.inventory(@store, :adjustment_created, payload) if movement.adjustment?
+    end
 
     def locked_inventory_item(product, warehouse)
       item = InventoryItem.lock.find_by(product: product, warehouse: warehouse)

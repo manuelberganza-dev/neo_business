@@ -7,7 +7,7 @@ module Sales
     end
 
     def call(sale_id:, reason:)
-      Sale.transaction do
+      sale = Sale.transaction do
         sale = Sale.lock.find(sale_id)
         ensure_same_store!(sale)
         ensure_voidable!(sale)
@@ -31,6 +31,9 @@ module Sales
         audit!("sale.void", sale, reason: reason, total: sale.total)
         sale
       end
+
+      broadcast_sale_voided(sale)
+      sale
     end
 
     private
@@ -57,6 +60,33 @@ module Sales
         metadata: metadata,
         occurred_at: Time.current
       )
+    end
+
+    def broadcast_sale_voided(sale)
+      payload = {
+        sale_id: sale.id,
+        sale_number: sale.sale_number,
+        branch_id: sale.branch_id,
+        cashier_id: sale.cashier_id,
+        total: sale.total,
+        status: sale.status,
+        void_reason: sale.void_reason,
+        voided_at: sale.voided_at
+      }
+
+      Realtime::Broadcaster.sales(@store, :sale_voided, payload)
+      Realtime::Broadcaster.sales(@store, :daily_total_updated, daily_total_payload)
+      Realtime::Broadcaster.pos(@store, :terminal_sync, payload.merge(resource: "sale"))
+    end
+
+    def daily_total_payload
+      range = Time.zone.today.beginning_of_day..Time.zone.today.end_of_day
+
+      {
+        date: Time.zone.today.iso8601,
+        sales_count: Sale.where(status: :paid, sold_at: range).count,
+        total: Sale.where(status: :paid, sold_at: range).sum(:total)
+      }
     end
   end
 end

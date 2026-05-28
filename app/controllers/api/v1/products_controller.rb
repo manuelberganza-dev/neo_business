@@ -41,7 +41,23 @@ module Api
       end
 
       def after_save(record)
+        broadcast_price_update(record) if saved_price_change?(record)
         record.image.attach(params[:product][:image]) if params.dig(:product, :image).present?
+      end
+
+      def saved_price_change?(record)
+        record.saved_change_to_price?
+      end
+
+      def broadcast_price_update(product)
+        Realtime::Broadcaster.pos(current_store, :product_price_updated, {
+          product_id: product.id,
+          sku: product.sku,
+          barcode: product.barcode,
+          name: product.name,
+          price: product.price,
+          updated_at: product.updated_at
+        })
       end
 
       def serialize_resource(product)

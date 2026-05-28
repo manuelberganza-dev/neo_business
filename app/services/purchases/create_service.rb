@@ -7,7 +7,7 @@ module Purchases
     end
 
     def call(attributes)
-      Purchase.transaction do
+      purchase = Purchase.transaction do
         supplier = Supplier.find(attributes.fetch(:supplier_id))
         warehouse = Warehouse.find(attributes.fetch(:warehouse_id))
         ensure_same_store!(supplier)
@@ -36,6 +36,9 @@ module Purchases
         audit!("purchase.create", purchase, total: purchase.total, item_count: purchase.purchase_items.count)
         purchase
       end
+
+      broadcast_purchase_received(purchase)
+      purchase
     end
 
     private
@@ -102,6 +105,17 @@ module Purchases
         metadata: metadata,
         occurred_at: Time.current
       )
+    end
+
+    def broadcast_purchase_received(purchase)
+      Realtime::Broadcaster.notifications(@store, :purchase_received, {
+        purchase_id: purchase.id,
+        purchase_number: purchase.purchase_number,
+        supplier_id: purchase.supplier_id,
+        warehouse_id: purchase.warehouse_id,
+        total: purchase.total,
+        purchased_at: purchase.purchased_at
+      })
     end
   end
 end

@@ -59,43 +59,49 @@ module Api
       end
 
       test "opens cash session creates sale moves inventory voids sale and closes session" do
-        post "/api/v1/cash_sessions/open",
-          params: {
-            cash_session: {
-              cash_register_id: @cash_register.id,
-              opening_amount: "50.00"
-            }
-          },
-          headers: @headers,
-          as: :json
+        assert_broadcasts Realtime::Broadcaster.stream_name(@store, :pos), 1 do
+          post "/api/v1/cash_sessions/open",
+            params: {
+              cash_session: {
+                cash_register_id: @cash_register.id,
+                opening_amount: "50.00"
+              }
+            },
+            headers: @headers,
+            as: :json
+        end
 
         assert_response :created
         cash_session_id = response.parsed_body.fetch("id")
         assert_equal "in_use", @cash_register.reload.status
 
-        post "/api/v1/sales",
-          params: {
-            sale: {
-              branch_id: @branch.id,
-              cash_session_id: cash_session_id,
-              warehouse_id: @warehouse.id,
-              items: [
-                {
-                  product_id: @product.id,
-                  quantity: "2",
-                  unit_price: "10.00"
+        assert_broadcasts Realtime::Broadcaster.stream_name(@store, :inventory), 1 do
+          assert_broadcasts Realtime::Broadcaster.stream_name(@store, :sales), 2 do
+            post "/api/v1/sales",
+              params: {
+                sale: {
+                  branch_id: @branch.id,
+                  cash_session_id: cash_session_id,
+                  warehouse_id: @warehouse.id,
+                  items: [
+                    {
+                      product_id: @product.id,
+                      quantity: "2",
+                      unit_price: "10.00"
+                    }
+                  ],
+                  payments: [
+                    {
+                      method: "EFECTIVO",
+                      amount: "22.60"
+                    }
+                  ]
                 }
-              ],
-              payments: [
-                {
-                  method: "EFECTIVO",
-                  amount: "22.60"
-                }
-              ]
-            }
-          },
-          headers: @headers,
-          as: :json
+              },
+              headers: @headers,
+              as: :json
+          end
+        end
 
         assert_response :created
         sale_id = response.parsed_body.dig("sale", "id")
@@ -105,10 +111,14 @@ module Api
           assert_equal(-2.to_d, StockMovement.sale.last.qty)
         end
 
-        post "/api/v1/sales/#{sale_id}/void",
-          params: { sale: { reason: "Error de cajero" } },
-          headers: @headers,
-          as: :json
+        assert_broadcasts Realtime::Broadcaster.stream_name(@store, :inventory), 1 do
+          assert_broadcasts Realtime::Broadcaster.stream_name(@store, :sales), 2 do
+            post "/api/v1/sales/#{sale_id}/void",
+              params: { sale: { reason: "Error de cajero" } },
+              headers: @headers,
+              as: :json
+          end
+        end
 
         assert_response :success
         assert_equal "voided", response.parsed_body.dig("sale", "status")

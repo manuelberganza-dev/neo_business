@@ -6,7 +6,7 @@ module CashSessions
     end
 
     def call(cash_register_id:, opening_amount:)
-      CashSession.transaction do
+      session = CashSession.transaction do
         cash_register = CashRegister.lock.find(cash_register_id)
         ensure_same_store!(cash_register)
         ensure_register_available!(cash_register)
@@ -24,6 +24,9 @@ module CashSessions
         audit!("cash_session.open", session, opening_amount: opening_amount)
         session
       end
+
+      broadcast_opened(session)
+      session
     end
 
     private
@@ -50,6 +53,16 @@ module CashSessions
         metadata: metadata,
         occurred_at: Time.current
       )
+    end
+
+    def broadcast_opened(session)
+      Realtime::Broadcaster.pos(@store, :cash_session_opened, {
+        cash_session_id: session.id,
+        cash_register_id: session.cash_register_id,
+        user_id: session.user_id,
+        opening_amount: session.opening_amount,
+        opened_at: session.opened_at
+      })
     end
   end
 end

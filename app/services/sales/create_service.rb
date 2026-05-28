@@ -11,7 +11,7 @@ module Sales
       existing_sale = Sale.find_by(idempotency_key: idempotency_key) if idempotency_key
       return existing_sale if existing_sale
 
-      Sale.transaction do
+      sale = Sale.transaction do
         cash_session = CashSession.lock.find(attributes.fetch(:cash_session_id))
         ensure_open_cash_session!(cash_session)
 
@@ -51,6 +51,9 @@ module Sales
         audit!("sale.create", sale, total: sale.total, item_count: sale.sale_items.count)
         sale
       end
+
+      broadcast_sale_created(sale)
+      sale
     end
 
     private
@@ -181,6 +184,32 @@ module Sales
         metadata: metadata,
         occurred_at: Time.current
       )
+    end
+
+    def broadcast_sale_created(sale)
+      payload = {
+        sale_id: sale.id,
+        sale_number: sale.sale_number,
+        branch_id: sale.branch_id,
+        cashier_id: sale.cashier_id,
+        total: sale.total,
+        status: sale.status,
+        sold_at: sale.sold_at
+      }
+
+      Realtime::Broadcaster.sales(@store, :sale_created, payload)
+      Realtime::Broadcaster.sales(@store, :daily_total_updated, daily_total_payload)
+      Realtime::Broadcaster.pos(@store, :terminal_sync, payload.merge(resource: "sale"))
+    end
+
+    def daily_total_payload
+      range = Time.zone.today.beginning_of_day..Time.zone.today.end_of_day
+
+      {
+        date: Time.zone.today.iso8601,
+        sales_count: Sale.where(status: :paid, sold_at: range).count,
+        total: Sale.where(status: :paid, sold_at: range).sum(:total)
+      }
     end
   end
 end
