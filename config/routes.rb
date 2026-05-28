@@ -13,6 +13,18 @@ Rails.application.routes.draw do
       end
 
       get "me", to: "profile#show"
+
+      get "inventory", to: "inventory#index"
+      resources :stock_movements, only: [ :index, :create ]
+      post "cash_sessions/open", to: "cash_sessions#open"
+      post "cash_sessions/:id/close", to: "cash_sessions#close"
+      resources :sales, only: [ :index, :show, :create ] do
+        post :void, on: :member
+      end
+      resources :purchases, only: [ :create ]
+      post "mobile/scan_product", to: "mobile#scan_product"
+      get "reports/daily_sales", to: "reports#daily_sales"
+      get "reports/low_stock", to: "reports#low_stock"
     end
   end
 end

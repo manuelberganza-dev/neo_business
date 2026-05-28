@@ -7,6 +7,9 @@ class ApplicationController < ActionController::API
   after_action :clear_current_store
 
   rescue_from Pundit::NotAuthorizedError, with: :user_not_authorized
+  rescue_from ActiveRecord::RecordNotFound, with: :record_not_found
+  rescue_from ActiveRecord::RecordInvalid, with: :record_invalid
+  rescue_from ApplicationError, with: :application_error
 
   attr_reader :current_store
 
@@ -31,6 +34,30 @@ class ApplicationController < ActionController::API
 
   def user_not_authorized
     render json: { error: "not_authorized" }, status: :forbidden
+  end
+
+  def record_not_found
+    render json: { error: "not_found" }, status: :not_found
+  end
+
+  def record_invalid(error)
+    render json: {
+      error: "validation_failed",
+      details: error.record.errors.to_hash
+    }, status: :unprocessable_entity
+  end
+
+  def application_error(error)
+    render json: {
+      error: error.code,
+      message: error.message
+    }, status: error.status
+  end
+
+  def require_permission!(permission_key)
+    return if current_user.has_role?(:admin) || current_user.permission_keys.include?(permission_key)
+
+    raise Pundit::NotAuthorizedError
   end
 
   def user_from_authorization_header
