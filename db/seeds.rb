@@ -30,6 +30,7 @@ permissions = permission_keys.index_with do |key|
 end
 
 role_permissions = {
+  "superadmin" => permission_keys,
   "admin" => permission_keys,
   "manager" => permission_keys - [ "stores.write" ],
   "cajero" => %w[
@@ -110,6 +111,7 @@ if Rails.env.local?
     end
 
     UserRole.find_or_create_by!(store: store, user: admin, role: Role.find_by!(name: "admin"))
+    UserRole.find_or_create_by!(store: store, user: admin, role: Role.find_by!(name: "superadmin"))
 
     Category.find_or_create_by!(store: store, name: "General")
     Brand.find_or_create_by!(store: store, name: "Generica")

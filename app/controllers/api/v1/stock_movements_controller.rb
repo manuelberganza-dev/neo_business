@@ -18,6 +18,7 @@ module Api
         require_permission!("stock_movements.write")
 
         attributes = stock_movement_params
+        ensure_manual_reason!(attributes)
         movement = Inventory::MovementService.new(store: current_store, user: current_user).call(
           product: Product.find(attributes.fetch(:product_id)),
           warehouse: Warehouse.find(attributes.fetch(:warehouse_id)),
@@ -29,6 +30,22 @@ module Api
         )
 
         render json: { stock_movement: serialize_movement(movement) }, status: :created
+      end
+
+      def transfer
+        require_permission!("stock_movements.write")
+
+        outgoing, incoming = Inventory::TransferService.new(store: current_store, user: current_user).call(
+          product_id: transfer_params.fetch(:product_id),
+          from_warehouse_id: transfer_params.fetch(:from_warehouse_id),
+          to_warehouse_id: transfer_params.fetch(:to_warehouse_id),
+          qty: transfer_params.fetch(:qty),
+          notes: transfer_params.fetch(:notes)
+        )
+
+        render json: {
+          stock_movements: [ serialize_movement(outgoing), serialize_movement(incoming) ]
+        }, status: :created
       end
 
       private
@@ -43,6 +60,16 @@ module Api
           :notes,
           :allow_negative
         ).to_h.deep_symbolize_keys
+      end
+
+      def transfer_params
+        params.require(:transfer).permit(:product_id, :from_warehouse_id, :to_warehouse_id, :qty, :notes)
+      end
+
+      def ensure_manual_reason!(attributes)
+        return unless attributes[:movement_type].to_s == "adjustment" && attributes[:notes].blank?
+
+        raise ApplicationError.new("Adjustment reason is required", code: "adjustment_reason_required")
       end
 
       def serialize_movement(movement)

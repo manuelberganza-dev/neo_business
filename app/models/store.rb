@@ -14,4 +14,7 @@ class Store < ApplicationRecord
 
   validates :name, :legal_name, :nit, presence: true
   validates :nit, uniqueness: true
+  validates :email, format: { with: URI::MailTo::EMAIL_REGEXP }, allow_blank: true
+  validates :nit, format: { with: /\A[0-9\-]{9,20}\z/ }
+  validates :nrc, format: { with: /\A[0-9\-]{2,20}\z/ }, allow_blank: true
 end
