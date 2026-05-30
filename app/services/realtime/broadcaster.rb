@@ -18,10 +18,12 @@ module Realtime
       end
 
       def notifications(store, event, payload = {})
+        persist_notification(store: store, event: event, payload: payload)
         broadcast(store, :notifications, event, payload)
       end
 
       def user_notification(user, event, payload = {})
+        persist_notification(store: user.store, user: user, event: event, payload: payload)
         ActionCable.server.broadcast(user_stream_name(user, :notifications), envelope(event, payload))
       end
 
@@ -41,6 +43,18 @@ module Realtime
           payload: payload,
           sent_at: Time.current.iso8601
         }
+      end
+
+      def persist_notification(store:, event:, payload:, user: nil)
+        return unless defined?(Notification)
+
+        Notification.create!(
+          store: store,
+          user: user,
+          event: event.to_s,
+          title: event.to_s.tr("_", " ").humanize,
+          metadata: payload
+        )
       end
     end
   end

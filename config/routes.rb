@@ -22,9 +22,14 @@ Rails.application.routes.draw do
       get "inventory/warehouses/:warehouse_id/history", to: "inventory#warehouse_history"
       resources :stock_movements, only: [ :index, :create ]
       post "stock_movements/transfer", to: "stock_movements#transfer"
+      resources :notifications, only: [ :index, :show ] do
+        patch :read, on: :member
+        patch :read_all, on: :collection
+      end
       get "cash_sessions/current", to: "cash_sessions#current"
       post "cash_sessions/open", to: "cash_sessions#open"
       post "cash_sessions/:id/close", to: "cash_sessions#close"
+      resources :cash_sessions, only: [ :index, :show ]
       resources :stores
       resources :branches
       resources :users
@@ -42,11 +47,15 @@ Rails.application.routes.draw do
       resources :sales, only: [ :index, :show, :create ] do
         post :void, on: :member
       end
-      resources :purchases, only: [ :create ]
+      resources :purchases, only: [ :index, :show, :create ] do
+        post :void, on: :member
+      end
       post "mobile/scan_product", to: "mobile#scan_product"
       get "reports/daily_sales", to: "reports#daily_sales"
       get "reports/sales", to: "reports#sales"
       get "reports/sales_by_cashier", to: "reports#sales_by_cashier"
+      get "reports/sales_by_hour", to: "reports#sales_by_hour"
+      get "reports/payment_methods", to: "reports#payment_methods"
       get "reports/top_products", to: "reports#top_products"
       get "reports/gross_margin", to: "reports#gross_margin"
       get "reports/low_stock", to: "reports#low_stock"

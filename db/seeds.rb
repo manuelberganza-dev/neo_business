@@ -19,6 +19,7 @@ permission_keys = %w[
   payments.read payments.write
   invoices.read invoices.write
   purchases.read purchases.write
+  notifications.read notifications.write
   reports.read
   audit_logs.read
 ]
@@ -35,13 +36,16 @@ role_permissions = {
   "manager" => permission_keys - [ "stores.write" ],
   "cajero" => %w[
     products.read inventory_items.read customers.read customers.write
+    cash_registers.read
     cash_sessions.read cash_sessions.write sales.read sales.write
     payments.read payments.write invoices.read invoices.write
+    notifications.read notifications.write
   ],
   "bodeguero" => %w[
     products.read products.write warehouses.read inventory_items.read
     inventory_items.write stock_movements.read stock_movements.write
     suppliers.read suppliers.write purchases.read purchases.write
+    notifications.read notifications.write
   ]
 }
 

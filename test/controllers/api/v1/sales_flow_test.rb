@@ -111,6 +111,36 @@ module Api
           assert_equal(-2.to_d, StockMovement.sale.last.qty)
         end
 
+        sale_number = response.parsed_body.dig("sale", "sale_number")
+
+        get "/api/v1/sales?status=paid&sale_number=#{sale_number}&branch_id=#{@branch.id}&cash_session_id=#{cash_session_id}",
+          headers: @headers,
+          as: :json
+
+        assert_response :success
+        assert_equal [ sale_id ], response.parsed_body.fetch("sales").map { |sale| sale.fetch("id") }
+
+        get "/api/v1/reports/daily_sales?branch_id=#{@branch.id}",
+          headers: @headers,
+          as: :json
+
+        assert_response :success
+        assert_equal "EFECTIVO", response.parsed_body.dig("payment_summary", 0, "method")
+
+        get "/api/v1/reports/sales_by_hour?branch_id=#{@branch.id}",
+          headers: @headers,
+          as: :json
+
+        assert_response :success
+        assert_equal 1, response.parsed_body.fetch("hours").length
+
+        get "/api/v1/reports/payment_methods?branch_id=#{@branch.id}",
+          headers: @headers,
+          as: :json
+
+        assert_response :success
+        assert_equal "EFECTIVO", response.parsed_body.dig("payment_methods", 0, "method")
+
         get "/api/v1/cash_sessions/current?cash_register_id=#{@cash_register.id}",
           headers: @headers,
           as: :json
@@ -119,6 +149,20 @@ module Api
         assert_equal cash_session_id, response.parsed_body.dig("cash_session", "id")
         assert_equal "EFECTIVO", response.parsed_body.dig("cash_session", "payment_summary", 0, "method")
         assert_equal "22.6", response.parsed_body.dig("cash_session", "payment_summary", 0, "amount").to_s
+
+        get "/api/v1/cash_sessions?status=open&branch_id=#{@branch.id}",
+          headers: @headers,
+          as: :json
+
+        assert_response :success
+        assert_equal [ cash_session_id ], response.parsed_body.fetch("cash_sessions").map { |session| session.fetch("id") }
+
+        get "/api/v1/cash_sessions/#{cash_session_id}",
+          headers: @headers,
+          as: :json
+
+        assert_response :success
+        assert_equal cash_session_id, response.parsed_body.dig("cash_session", "id")
 
         post "/api/v1/cash_sessions/#{cash_session_id}/close",
           params: { cash_session: { closing_amount: "72.60" } },

@@ -1,6 +1,23 @@
 module Api
   module V1
     class CashSessionsController < ApplicationController
+      def index
+        require_permission!("cash_sessions.read")
+
+        sessions = CashSession.includes(:user, cash_register: :branch)
+          .order(opened_at: :desc)
+        sessions = apply_filters(sessions)
+
+        render json: { cash_sessions: sessions.limit(params.fetch(:limit, 100)).map { |session| serialize_cash_session(session) } }
+      end
+
+      def show
+        require_permission!("cash_sessions.read")
+
+        session = CashSession.includes(:user, cash_register: :branch).find(params[:id])
+        render json: { cash_session: serialize_cash_session(session) }
+      end
+
       def current
         require_permission!("cash_sessions.read")
 
@@ -51,6 +68,7 @@ module Api
           branch_id: session.cash_register.branch_id,
           branch_name: session.cash_register.branch.name,
           user_id: session.user_id,
+          user_name: session.user.full_name,
           opening_amount: session.opening_amount,
           closing_amount: session.closing_amount,
           expected_amount: session.expected_amount,
@@ -60,6 +78,22 @@ module Api
           opened_at: session.opened_at,
           closed_at: session.closed_at
         }
+      end
+
+      def apply_filters(sessions)
+        sessions = sessions.where(status: CashSession.statuses[params[:status]]) if params[:status].present?
+        sessions = sessions.where(cash_register_id: params[:cash_register_id]) if params[:cash_register_id].present?
+        sessions = sessions.where(user_id: params[:user_id]) if params[:user_id].present?
+        sessions = sessions.where(opened_at: date_range) if params[:from].present? || params[:to].present?
+        sessions = sessions.joins(:cash_register).where(cash_registers: { branch_id: params[:branch_id] }) if params[:branch_id].present?
+        sessions
+      end
+
+      def date_range
+        from = params[:from].present? ? Time.zone.parse(params[:from]) : Time.zone.local(1970, 1, 1)
+        to = params[:to].present? ? Time.zone.parse(params[:to]) : Time.zone.now
+
+        from..to
       end
 
       def payment_summary(session)

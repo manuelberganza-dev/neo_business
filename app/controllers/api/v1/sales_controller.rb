@@ -6,13 +6,17 @@ module Api
 
         sales = Sale.includes(:customer, :cashier)
           .order(sold_at: :desc)
-          .limit(params.fetch(:limit, 50))
 
         sales = sales.where(status: Sale.statuses[params[:status]]) if params[:status].present?
         sales = sales.where("sold_at >= ?", Time.zone.parse(params[:from])) if params[:from].present?
         sales = sales.where("sold_at <= ?", Time.zone.parse(params[:to])) if params[:to].present?
+        sales = sales.where(sale_number: params[:sale_number]) if params[:sale_number].present?
+        sales = sales.where(customer_id: params[:customer_id]) if params[:customer_id].present?
+        sales = sales.where(cash_session_id: params[:cash_session_id]) if params[:cash_session_id].present?
+        sales = sales.where(branch_id: params[:branch_id]) if params[:branch_id].present?
+        sales = sales.where(cashier_id: params[:cashier_id]) if params[:cashier_id].present?
 
-        render json: { sales: sales.map { |sale| serialize_sale_summary(sale) } }
+        render json: { sales: sales.limit(params.fetch(:limit, 50)).map { |sale| serialize_sale_summary(sale) } }
       end
 
       def show
@@ -76,6 +80,8 @@ module Api
           sale_number: sale.sale_number,
           customer_id: sale.customer_id,
           customer_name: sale.customer&.name,
+          branch_id: sale.branch_id,
+          cash_session_id: sale.cash_session_id,
           cashier_id: sale.cashier_id,
           cashier_name: sale.cashier.full_name,
           total: sale.total,

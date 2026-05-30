@@ -80,10 +80,16 @@ module Api
           track_inventory: product.track_inventory,
           active: product.active,
           image_attached: product.image.attached?,
-          image_url: product.image.attached? ? rails_blob_path(product.image, only_path: true) : nil,
+          image_url: product_image_url(product),
           created_at: product.created_at,
           updated_at: product.updated_at
         }
+      end
+
+      def product_image_url(product)
+        return unless product.image.attached?
+
+        rails_blob_url(product.image, host: request.base_url)
       end
     end
   end

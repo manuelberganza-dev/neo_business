@@ -16,6 +16,7 @@ module Api
           @unit = Unit.create!(store: @store, code: "UND", name: "Unidad")
           @warehouse_a = Warehouse.create!(store: @store, branch: @branch, code: "A", name: "Bodega A")
           @warehouse_b = Warehouse.create!(store: @store, branch: @branch, code: "B", name: "Bodega B")
+          @supplier = Supplier.create!(store: @store, name: "Proveedor Demo", nit: "0614-060606-106-0")
           @product = Product.create!(
             store: @store,
             unit: @unit,
@@ -82,6 +83,81 @@ module Api
 
         assert_response :success
         assert_equal 2, response.parsed_body.fetch("kardex").length
+      end
+
+      test "lists shows voids purchases and reads persistent notifications" do
+        assert_broadcasts Realtime::Broadcaster.stream_name(@store, :notifications), 1 do
+          post "/api/v1/purchases",
+            params: {
+              purchase: {
+                supplier_id: @supplier.id,
+                warehouse_id: @warehouse_a.id,
+                invoice_number: "CCF-001",
+                discount: "0.00",
+                items: [
+                  {
+                    product_id: @product.id,
+                    quantity: "4",
+                    cost: "3.00",
+                    tax_rate: "0.13"
+                  }
+                ]
+              }
+            },
+            headers: @headers,
+            as: :json
+        end
+
+        assert_response :created
+        purchase_id = response.parsed_body.dig("purchase", "id")
+        assert_equal 14.to_d, @item_a.reload.quantity
+
+        get "/api/v1/purchases?status=received&supplier_id=#{@supplier.id}&warehouse_id=#{@warehouse_a.id}",
+          headers: @headers,
+          as: :json
+
+        assert_response :success
+        assert_equal [ purchase_id ], response.parsed_body.fetch("purchases").map { |purchase| purchase.fetch("id") }
+
+        get "/api/v1/purchases/#{purchase_id}",
+          headers: @headers,
+          as: :json
+
+        assert_response :success
+        assert_equal "Proveedor Demo", response.parsed_body.dig("purchase", "supplier_name")
+
+        get "/api/v1/notifications?unread=true",
+          headers: @headers,
+          as: :json
+
+        assert_response :success
+        notification_id = response.parsed_body.fetch("notifications").first.fetch("id")
+        assert_equal "purchase_received", response.parsed_body.fetch("notifications").first.fetch("event")
+
+        patch "/api/v1/notifications/#{notification_id}/read",
+          headers: @headers,
+          as: :json
+
+        assert_response :success
+        assert_equal true, response.parsed_body.dig("notification", "read")
+
+        assert_broadcasts Realtime::Broadcaster.stream_name(@store, :notifications), 1 do
+          post "/api/v1/purchases/#{purchase_id}/void",
+            params: { purchase: { reason: "Factura duplicada" } },
+            headers: @headers,
+            as: :json
+        end
+
+        assert_response :success
+        assert_equal "voided", response.parsed_body.dig("purchase", "status")
+        assert_equal 10.to_d, @item_a.reload.quantity
+
+        patch "/api/v1/notifications/read_all?unread=true",
+          headers: @headers,
+          as: :json
+
+        assert_response :success
+        assert_equal 1, response.parsed_body.fetch("read_count")
       end
     end
   end

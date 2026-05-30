@@ -82,6 +82,7 @@ El flujo general es:
 | `invoices` | Documento fiscal/DTE-ready ligado a venta. |
 | `purchases` | Compra a proveedor. |
 | `purchase_items` | Detalle de compra. |
+| `notifications` | Historial persistente de avisos del sistema y eventos de jobs/canales. |
 | `audit_logs` | Auditoria de acciones sensibles. |
 | `active_storage_*` | Archivos adjuntos, hoy usado para imagen de producto. |
 
@@ -220,6 +221,14 @@ Nota rapida: `/warehouses` ahora devuelve solo bodegas activas por defecto. Para
 | `POST` | `/stock_movements` | Ajuste manual/entrada/salida. |
 | `POST` | `/stock_movements/transfer` | Transferencia entre bodegas. |
 
+Filtros comunes:
+
+```text
+GET /stock_movements?from=2026-05-01&to=2026-05-30&product_id=10&warehouse_id=1
+GET /reports/kardex?from=2026-05-01&to=2026-05-30&branch_id=1&warehouse_id=1
+GET /reports/low_stock?branch_id=1&warehouse_id=1
+```
+
 ### POS y Compras
 
 | Metodo | Endpoint | Uso |
@@ -229,13 +238,27 @@ Nota rapida: `/warehouses` ahora devuelve solo bodegas activas por defecto. Para
 | `PATCH` | `/cash_registers/:id` | Edita una caja POS. |
 | `DELETE` | `/cash_registers/:id` | Marca la caja como inactiva. |
 | `GET` | `/cash_sessions/current` | Devuelve la caja abierta actual, opcional por caja o usuario. |
+| `GET` | `/cash_sessions` | Historico de aperturas/cierres para arqueos y auditoria. |
+| `GET` | `/cash_sessions/:id` | Detalle de una sesion de caja con resumen por metodo. |
 | `POST` | `/cash_sessions/open` | Abre caja. |
 | `POST` | `/cash_sessions/:id/close` | Cierra caja y devuelve resumen por metodo de pago. |
 | `POST` | `/sales` | Crea venta POS, pagos y descuenta inventario. |
 | `GET` | `/sales` | Historial de ventas. |
 | `GET` | `/sales/:id` | Detalle de venta. |
 | `POST` | `/sales/:id/void` | Anula venta y repone inventario. |
+| `GET` | `/purchases` | Historial de compras. |
+| `GET` | `/purchases/:id` | Detalle de compra. |
 | `POST` | `/purchases` | Compra proveedor y entrada a inventario. |
+| `POST` | `/purchases/:id/void` | Anula compra recibida y revierte inventario. |
+
+Filtros utiles:
+
+```text
+GET /sales?status=paid&from=2026-05-01&to=2026-05-30&branch_id=1&cash_session_id=5
+GET /sales?sale_number=V20260530101000123456&customer_id=3
+GET /cash_sessions?status=closed&from=2026-05-01&to=2026-05-30&branch_id=1&user_id=4
+GET /purchases?status=received&supplier_id=1&warehouse_id=1&from=2026-05-01&to=2026-05-30
+```
 
 ### Movil y Reportes
 
@@ -245,10 +268,38 @@ Nota rapida: `/warehouses` ahora devuelve solo bodegas activas por defecto. Para
 | `GET` | `/reports/daily_sales` | Ventas del dia. |
 | `GET` | `/reports/sales` | Ventas por rango. |
 | `GET` | `/reports/sales_by_cashier` | Ventas agrupadas por cajero. |
+| `GET` | `/reports/sales_by_hour` | Ventas agrupadas por hora para dashboard. |
+| `GET` | `/reports/payment_methods` | Totales por metodo de pago. |
 | `GET` | `/reports/top_products` | Productos mas vendidos. |
 | `GET` | `/reports/gross_margin` | Margen bruto. |
 | `GET` | `/reports/low_stock` | Productos bajo minimo. |
 | `GET` | `/reports/kardex` | Kardex reportable. |
+
+Los reportes aceptan filtros consistentes cuando aplica:
+
+```text
+from=2026-05-01
+to=2026-05-30
+branch_id=1
+warehouse_id=1
+```
+
+### Notificaciones
+
+| Metodo | Endpoint | Uso |
+| --- | --- | --- |
+| `GET` | `/notifications` | Historial de notificaciones. |
+| `GET` | `/notifications/:id` | Detalle de una notificacion. |
+| `PATCH` | `/notifications/:id/read` | Marca una notificacion como leida. |
+| `PATCH` | `/notifications/read_all` | Marca varias como leidas segun filtros. |
+
+Filtros utiles:
+
+```text
+GET /notifications?unread=true
+GET /notifications?event=purchase_received&from=2026-05-01&to=2026-05-30
+PATCH /notifications/read_all?unread=true
+```
 
 ## Ejemplos JSON Para Svelte
 
@@ -298,6 +349,18 @@ Para imagen de producto, Svelte debe enviar `multipart/form-data` con el campo:
 
 ```text
 product[image]
+```
+
+La respuesta de productos y escaneo devuelve `image_url` absoluta cuando el producto tiene imagen, lista para usarla en `<img src="...">` o en un `Image.network(...)` desde Flutter:
+
+```json
+{
+  "product": {
+    "id": 10,
+    "image_attached": true,
+    "image_url": "http://localhost:3000/rails/active_storage/blobs/redirect/..."
+  }
+}
 ```
 
 ### Crear Usuario Con Roles
@@ -405,7 +468,7 @@ Respuesta resumida:
 
 ### Reporte De Ventas
 
-`GET /api/v1/reports/sales?from=2026-05-01&to=2026-05-28`
+`GET /api/v1/reports/sales?from=2026-05-01&to=2026-05-28&branch_id=1`
 
 Respuesta resumida:
 
@@ -417,7 +480,50 @@ Respuesta resumida:
   "subtotal": "1200.00",
   "tax": "156.00",
   "discount": "0.00",
-  "total": "1356.00"
+  "total": "1356.00",
+  "branch_id": "1",
+  "warehouse_id": null
+}
+```
+
+### Reporte Por Hora
+
+`GET /api/v1/reports/sales_by_hour?from=2026-05-30&to=2026-05-30&branch_id=1`
+
+```json
+{
+  "from": "2026-05-30T00:00:00.000-06:00",
+  "to": "2026-05-30T23:59:59.999-06:00",
+  "branch_id": "1",
+  "warehouse_id": null,
+  "hours": [
+    {
+      "hour": "2026-05-30 09:00:00",
+      "sales_count": 8,
+      "total": "245.75"
+    }
+  ]
+}
+```
+
+### Reporte Por Metodo De Pago
+
+`GET /api/v1/reports/payment_methods?from=2026-05-30&to=2026-05-30&branch_id=1`
+
+```json
+{
+  "payment_methods": [
+    {
+      "method": "EFECTIVO",
+      "amount": "80.25",
+      "payments_count": 5
+    },
+    {
+      "method": "TARJETA",
+      "amount": "45.0",
+      "payments_count": 2
+    }
+  ]
 }
 ```
 
@@ -458,7 +564,7 @@ Respuesta resumida:
     "track_inventory": true,
     "active": true,
     "image_attached": true,
-    "image_url": "/rails/active_storage/blobs/redirect/..."
+    "image_url": "http://localhost:3000/rails/active_storage/blobs/redirect/..."
   },
   "stock": {
     "total_quantity": "18.0",
@@ -537,6 +643,31 @@ Para pedir solo la caja abierta del usuario autenticado:
 
 ```text
 GET /api/v1/cash_sessions/current?mine=true
+```
+
+### Historico De Caja
+
+`GET /api/v1/cash_sessions?status=closed&branch_id=1&from=2026-05-01&to=2026-05-30`
+
+```json
+{
+  "cash_sessions": [
+    {
+      "id": 1,
+      "cash_register_id": 1,
+      "cash_register_name": "Caja principal",
+      "branch_id": 1,
+      "branch_name": "Sucursal Centro",
+      "user_id": 5,
+      "user_name": "Carlos Cajero",
+      "opening_amount": "50.0",
+      "closing_amount": "175.25",
+      "expected_amount": "175.25",
+      "difference_amount": "0.0",
+      "status": "closed"
+    }
+  ]
+}
 ```
 
 ### Venta POS Con Pago Mixto
@@ -659,6 +790,47 @@ Nota: `idempotency_key` ayuda a que Flutter pueda reintentar una venta si pierde
 }
 ```
 
+### Consultar Y Anular Compra
+
+`GET /api/v1/purchases?status=received&warehouse_id=1`
+
+`POST /api/v1/purchases/10/void`
+
+```json
+{
+  "purchase": {
+    "reason": "Factura duplicada"
+  }
+}
+```
+
+Al anular, el backend crea movimientos de inventario negativos contra la misma bodega y deja la compra en `voided`.
+
+### Leer Notificaciones
+
+`GET /api/v1/notifications?unread=true`
+
+```json
+{
+  "notifications": [
+    {
+      "id": 20,
+      "event": "purchase_received",
+      "title": "Purchase received",
+      "metadata": {
+        "purchase_id": 10,
+        "warehouse_id": 1,
+        "total": "31.64"
+      },
+      "read": false,
+      "created_at": "2026-05-30T10:00:00.000-06:00"
+    }
+  ]
+}
+```
+
+`PATCH /api/v1/notifications/20/read`
+
 ### Cerrar Caja
 
 `POST /api/v1/cash_sessions/1/close`
@@ -729,8 +901,8 @@ bundle exec rubocop
 Estado actual verificado:
 
 ```text
-7 tests, 73 assertions, 0 failures, 0 errors
-97 files inspected, no offenses detected
+8 tests, 104 assertions, 0 failures, 0 errors
+101 files inspected, no offenses detected
 Zeitwerk: All is good
 ```
 

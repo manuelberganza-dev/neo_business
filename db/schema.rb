@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_28_212552) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_30_100000) do
   create_table "active_storage_attachments", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -219,6 +219,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_28_212552) do
     t.index ["store_id", "sale_id"], name: "index_invoices_on_store_id_and_sale_id", unique: true
     t.index ["store_id", "status"], name: "index_invoices_on_store_id_and_status"
     t.index ["store_id"], name: "index_invoices_on_store_id"
+  end
+
+  create_table "notifications", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+    t.text "body"
+    t.datetime "created_at", null: false
+    t.string "event", null: false
+    t.json "metadata"
+    t.datetime "read_at"
+    t.bigint "store_id", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id"
+    t.index ["store_id", "created_at"], name: "index_notifications_on_store_id_and_created_at"
+    t.index ["store_id", "event"], name: "index_notifications_on_store_id_and_event"
+    t.index ["store_id", "user_id", "read_at"], name: "index_notifications_on_store_id_and_user_id_and_read_at"
+    t.index ["store_id"], name: "index_notifications_on_store_id"
+    t.index ["user_id"], name: "index_notifications_on_user_id"
   end
 
   create_table "payment_methods", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
@@ -534,6 +551,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_28_212552) do
   add_foreign_key "inventory_items", "warehouses"
   add_foreign_key "invoices", "sales"
   add_foreign_key "invoices", "stores"
+  add_foreign_key "notifications", "stores"
+  add_foreign_key "notifications", "users"
   add_foreign_key "payment_methods", "stores"
   add_foreign_key "payments", "payment_methods"
   add_foreign_key "payments", "sales"
