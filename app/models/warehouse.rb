@@ -8,4 +8,5 @@ class Warehouse < ApplicationRecord
 
   validates :code, :name, presence: true
   validates :code, uniqueness: { scope: :store_id }
+  validates :active, inclusion: { in: [ true, false ] }
 end

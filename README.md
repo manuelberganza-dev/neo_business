@@ -189,6 +189,7 @@ Estos tienen CRUD completo: `GET index`, `POST create`, `GET show`, `PATCH updat
 | Payment Methods | `/payment_methods` |
 | Products | `/products` |
 | Warehouses | `/warehouses` |
+| Cash Registers | `/cash_registers` |
 | Customers | `/customers` |
 | Suppliers | `/suppliers` |
 
@@ -198,9 +199,14 @@ Filtros utiles:
 GET /products?name=cafe&sku=ABC&barcode=750123&category_id=1&active=true
 GET /customers?name=juan&nit=0614&nrc=123&phone=7777
 GET /suppliers?name=distribuidora&nit=0614&nrc=123
-GET /warehouses?branch_id=1&active=true
+GET /warehouses?branch_id=1
+GET /warehouses?include_inactive=true
+GET /warehouses?active=false
+GET /cash_registers?branch_id=1&status=available
 GET /users?branch_id=1&active=true&email=admin
 ```
+
+Nota rapida: `/warehouses` ahora devuelve solo bodegas activas por defecto. Para ver todo se usa `include_inactive=true`; para buscar solo inactivas se usa `active=false`.
 
 ### Inventario
 
@@ -218,8 +224,13 @@ GET /users?branch_id=1&active=true&email=admin
 
 | Metodo | Endpoint | Uso |
 | --- | --- | --- |
+| `GET` | `/cash_registers` | Lista cajas POS por sucursal/estado. |
+| `POST` | `/cash_registers` | Crea una caja POS. |
+| `PATCH` | `/cash_registers/:id` | Edita una caja POS. |
+| `DELETE` | `/cash_registers/:id` | Marca la caja como inactiva. |
+| `GET` | `/cash_sessions/current` | Devuelve la caja abierta actual, opcional por caja o usuario. |
 | `POST` | `/cash_sessions/open` | Abre caja. |
-| `POST` | `/cash_sessions/:id/close` | Cierra caja. |
+| `POST` | `/cash_sessions/:id/close` | Cierra caja y devuelve resumen por metodo de pago. |
 | `POST` | `/sales` | Crea venta POS, pagos y descuenta inventario. |
 | `GET` | `/sales` | Historial de ventas. |
 | `GET` | `/sales/:id` | Detalle de venta. |
@@ -307,6 +318,53 @@ product[image]
 }
 ```
 
+### Crear Caja POS
+
+`POST /api/v1/cash_registers`
+
+```json
+{
+  "cash_register": {
+    "branch_id": 1,
+    "code": "CAJA-01",
+    "name": "Caja principal",
+    "status": "available"
+  }
+}
+```
+
+Respuesta resumida:
+
+```json
+{
+  "cash_register": {
+    "id": 1,
+    "store_id": 1,
+    "branch_id": 1,
+    "branch_name": "Sucursal Centro",
+    "code": "CAJA-01",
+    "name": "Caja principal",
+    "status": "available",
+    "current_cash_session_id": null
+  }
+}
+```
+
+### Crear Bodega Activa
+
+`POST /api/v1/warehouses`
+
+```json
+{
+  "warehouse": {
+    "branch_id": 1,
+    "code": "BOD-01",
+    "name": "Bodega principal",
+    "active": true
+  }
+}
+```
+
 ### Crear Cliente Fiscal
 
 `POST /api/v1/customers`
@@ -374,7 +432,58 @@ Flutter va mejor para flujos rapidos: escanear, abrir caja, vender, inventario f
 ```json
 {
   "scan": {
-    "barcode": "750100000001"
+    "barcode": "750100000001",
+    "warehouse_id": 1
+  }
+}
+```
+
+Tambien puede mandar `branch_id` si el usuario movil quiere ver stock de una sucursal completa. Si no manda bodega ni sucursal, la API usa la sucursal asignada al usuario cuando exista.
+
+Respuesta resumida:
+
+```json
+{
+  "product": {
+    "id": 10,
+    "sku": "CAF-001",
+    "barcode": "750100000001",
+    "name": "Cafe molido 400g",
+    "unit_code": "UND",
+    "category_name": "Abarrotes",
+    "brand_name": "Marca Local",
+    "cost": "2.5",
+    "price": "4.99",
+    "tax_rate": "0.13",
+    "track_inventory": true,
+    "active": true,
+    "image_attached": true,
+    "image_url": "/rails/active_storage/blobs/redirect/..."
+  },
+  "stock": {
+    "total_quantity": "18.0",
+    "warehouse": {
+      "warehouse_id": 1,
+      "warehouse_code": "BOD-01",
+      "warehouse_name": "Bodega principal",
+      "branch_id": 1,
+      "branch_name": "Sucursal Centro",
+      "quantity": "18.0",
+      "min_stock": "5.0",
+      "low_stock": false
+    },
+    "warehouses": [
+      {
+        "warehouse_id": 1,
+        "warehouse_code": "BOD-01",
+        "warehouse_name": "Bodega principal",
+        "branch_id": 1,
+        "branch_name": "Sucursal Centro",
+        "quantity": "18.0",
+        "min_stock": "5.0",
+        "low_stock": false
+      }
+    ]
   }
 }
 ```
@@ -390,6 +499,44 @@ Flutter va mejor para flujos rapidos: escanear, abrir caja, vender, inventario f
     "opening_amount": "50.00"
   }
 }
+```
+
+### Consultar Caja Abierta Actual
+
+`GET /api/v1/cash_sessions/current?cash_register_id=1`
+
+Respuesta resumida:
+
+```json
+{
+  "cash_session": {
+    "id": 1,
+    "cash_register_id": 1,
+    "cash_register_name": "Caja principal",
+    "branch_id": 1,
+    "branch_name": "Sucursal Centro",
+    "user_id": 5,
+    "opening_amount": "50.0",
+    "expected_amount": "72.6",
+    "difference_amount": "0.0",
+    "payment_summary": [
+      {
+        "method": "EFECTIVO",
+        "amount": "22.6",
+        "payments_count": 1
+      }
+    ],
+    "status": "open",
+    "opened_at": "2026-05-30T09:00:00.000-06:00",
+    "closed_at": null
+  }
+}
+```
+
+Para pedir solo la caja abierta del usuario autenticado:
+
+```text
+GET /api/v1/cash_sessions/current?mine=true
 ```
 
 ### Venta POS Con Pago Mixto
@@ -524,6 +671,33 @@ Nota: `idempotency_key` ayuda a que Flutter pueda reintentar una venta si pierde
 }
 ```
 
+Respuesta resumida:
+
+```json
+{
+  "id": 1,
+  "cash_register_id": 1,
+  "cash_register_name": "Caja principal",
+  "opening_amount": "50.0",
+  "closing_amount": "175.25",
+  "expected_amount": "175.25",
+  "difference_amount": "0.0",
+  "payment_summary": [
+    {
+      "method": "EFECTIVO",
+      "amount": "80.25",
+      "payments_count": 5
+    },
+    {
+      "method": "TARJETA",
+      "amount": "45.0",
+      "payments_count": 2
+    }
+  ],
+  "status": "closed"
+}
+```
+
 ## Flujo Recomendado Web + Movil
 
 Svelte:
@@ -555,8 +729,8 @@ bundle exec rubocop
 Estado actual verificado:
 
 ```text
-5 tests, 39 assertions, 0 failures, 0 errors
-89 files inspected, no offenses detected
+7 tests, 73 assertions, 0 failures, 0 errors
+97 files inspected, no offenses detected
 Zeitwerk: All is good
 ```
 

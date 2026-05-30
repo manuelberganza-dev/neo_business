@@ -18,8 +18,9 @@ module Sales
         branch = Branch.find(attributes[:branch_id].presence || cash_session.cash_register.branch_id)
         ensure_same_store!(branch)
 
-        warehouse = Warehouse.find(attributes[:warehouse_id].presence || branch.warehouses.first&.id)
+        warehouse = Warehouse.find(attributes[:warehouse_id].presence || branch.warehouses.where(active: true).first&.id)
         ensure_same_store!(warehouse)
+        ensure_active_warehouse!(warehouse)
 
         sale = Sale.create!(
           store: @store,
@@ -168,6 +169,12 @@ module Sales
       return if record&.store_id == @store.id
 
       raise ActiveRecord::RecordNotFound
+    end
+
+    def ensure_active_warehouse!(warehouse)
+      return if warehouse.active?
+
+      raise ApplicationError.new("Warehouse is inactive", code: "warehouse_inactive")
     end
 
     def next_sale_number

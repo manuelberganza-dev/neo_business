@@ -8,6 +8,7 @@ module Inventory
     def call(product:, warehouse:, movement_type:, qty:, unit_cost: 0, reference: nil, notes: nil, allow_negative: false)
       decimal_qty = BigDecimal(qty.to_s)
       raise ApplicationError.new("Quantity cannot be zero", code: "invalid_quantity") if decimal_qty.zero?
+      raise ApplicationError.new("Warehouse is inactive", code: "warehouse_inactive") unless warehouse.active?
 
       result = InventoryItem.transaction do
         item = locked_inventory_item(product, warehouse)

@@ -14,6 +14,8 @@ module Inventory
         product = Product.find(product_id)
         from_warehouse = Warehouse.find(from_warehouse_id)
         to_warehouse = Warehouse.find(to_warehouse_id)
+        ensure_active_warehouse!(from_warehouse)
+        ensure_active_warehouse!(to_warehouse)
 
         outgoing = @movement_service.call(
           product: product,
@@ -58,6 +60,12 @@ module Inventory
         metadata: metadata,
         occurred_at: Time.current
       )
+    end
+
+    def ensure_active_warehouse!(warehouse)
+      return if warehouse.active?
+
+      raise ApplicationError.new("Warehouse is inactive", code: "warehouse_inactive")
     end
   end
 end

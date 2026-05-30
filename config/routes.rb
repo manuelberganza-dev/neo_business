@@ -22,6 +22,7 @@ Rails.application.routes.draw do
       get "inventory/warehouses/:warehouse_id/history", to: "inventory#warehouse_history"
       resources :stock_movements, only: [ :index, :create ]
       post "stock_movements/transfer", to: "stock_movements#transfer"
+      get "cash_sessions/current", to: "cash_sessions#current"
       post "cash_sessions/open", to: "cash_sessions#open"
       post "cash_sessions/:id/close", to: "cash_sessions#close"
       resources :stores
@@ -35,6 +36,7 @@ Rails.application.routes.draw do
       resources :payment_methods
       resources :products
       resources :warehouses
+      resources :cash_registers
       resources :customers
       resources :suppliers
       resources :sales, only: [ :index, :show, :create ] do

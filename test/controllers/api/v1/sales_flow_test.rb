@@ -111,6 +111,26 @@ module Api
           assert_equal(-2.to_d, StockMovement.sale.last.qty)
         end
 
+        get "/api/v1/cash_sessions/current?cash_register_id=#{@cash_register.id}",
+          headers: @headers,
+          as: :json
+
+        assert_response :success
+        assert_equal cash_session_id, response.parsed_body.dig("cash_session", "id")
+        assert_equal "EFECTIVO", response.parsed_body.dig("cash_session", "payment_summary", 0, "method")
+        assert_equal "22.6", response.parsed_body.dig("cash_session", "payment_summary", 0, "amount").to_s
+
+        post "/api/v1/cash_sessions/#{cash_session_id}/close",
+          params: { cash_session: { closing_amount: "72.60" } },
+          headers: @headers,
+          as: :json
+
+        assert_response :success
+        assert_equal "closed", response.parsed_body.fetch("status")
+        assert_equal "available", @cash_register.reload.status
+        assert_equal "EFECTIVO", response.parsed_body.dig("payment_summary", 0, "method")
+        assert_equal "22.6", response.parsed_body.dig("payment_summary", 0, "amount").to_s
+
         assert_broadcasts Realtime::Broadcaster.stream_name(@store, :inventory), 1 do
           assert_broadcasts Realtime::Broadcaster.stream_name(@store, :sales), 2 do
             post "/api/v1/sales/#{sale_id}/void",
@@ -126,15 +146,26 @@ module Api
         ActsAsTenant.with_tenant(@store) do
           assert_equal 2.to_d, StockMovement.void.last.qty
         end
+      end
 
-        post "/api/v1/cash_sessions/#{cash_session_id}/close",
-          params: { cash_session: { closing_amount: "50.00" } },
+      test "mobile scan returns stock warehouse and image fields" do
+        post "/api/v1/mobile/scan_product",
+          params: {
+            scan: {
+              barcode: @product.barcode,
+              warehouse_id: @warehouse.id
+            }
+          },
           headers: @headers,
           as: :json
 
         assert_response :success
-        assert_equal "closed", response.parsed_body.fetch("status")
-        assert_equal "available", @cash_register.reload.status
+        assert_equal @product.id, response.parsed_body.dig("product", "id")
+        assert_equal false, response.parsed_body.dig("product", "image_attached")
+        assert_nil response.parsed_body.dig("product", "image_url")
+        assert_equal "10.0", response.parsed_body.dig("stock", "total_quantity").to_s
+        assert_equal @warehouse.id, response.parsed_body.dig("stock", "warehouse", "warehouse_id")
+        assert_equal "Bodega", response.parsed_body.dig("stock", "warehouse", "warehouse_name")
       end
     end
   end

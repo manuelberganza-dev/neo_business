@@ -111,6 +111,45 @@ module Api
         assert_response :success
         assert_includes response.parsed_body.fetch("permissions").map { |item| item.fetch("key") }, "products.read"
       end
+
+      test "lists only active warehouses by default and manages cash registers" do
+        active_warehouse = nil
+        inactive_warehouse = nil
+
+        ActsAsTenant.with_tenant(@store) do
+          active_warehouse = Warehouse.create!(store: @store, branch: @branch, code: "ACT", name: "Activa", active: true)
+          inactive_warehouse = Warehouse.create!(store: @store, branch: @branch, code: "INA", name: "Inactiva", active: false)
+        end
+
+        get "/api/v1/warehouses", headers: @headers, as: :json
+
+        assert_response :success
+        warehouse_ids = response.parsed_body.fetch("warehouses").map { |item| item.fetch("id") }
+        assert_includes warehouse_ids, active_warehouse.id
+        assert_not_includes warehouse_ids, inactive_warehouse.id
+
+        get "/api/v1/warehouses?include_inactive=true", headers: @headers, as: :json
+
+        assert_response :success
+        warehouse_ids = response.parsed_body.fetch("warehouses").map { |item| item.fetch("id") }
+        assert_includes warehouse_ids, inactive_warehouse.id
+
+        post "/api/v1/cash_registers",
+          params: {
+            cash_register: {
+              branch_id: @branch.id,
+              code: "CAJA-2",
+              name: "Caja 2",
+              status: "available"
+            }
+          },
+          headers: @headers,
+          as: :json
+
+        assert_response :created
+        assert_equal "CAJA-2", response.parsed_body.dig("cash_register", "code")
+        assert_equal "available", response.parsed_body.dig("cash_register", "status")
+      end
     end
   end
 end

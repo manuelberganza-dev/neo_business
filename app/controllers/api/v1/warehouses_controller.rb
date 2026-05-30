@@ -18,7 +18,11 @@ module Api
       def apply_filters(scope)
         scope = scope.includes(:branch)
         scope = scope.where(branch_id: params[:branch_id]) if params[:branch_id].present?
-        scope = scope.where(active: ActiveModel::Type::Boolean.new.cast(params[:active])) if params.key?(:active)
+        if params.key?(:active)
+          scope = scope.where(active: ActiveModel::Type::Boolean.new.cast(params[:active]))
+        elsif !ActiveModel::Type::Boolean.new.cast(params[:include_inactive])
+          scope = scope.where(active: true)
+        end
         scope.order(:code).limit(params.fetch(:limit, 100))
       end
 

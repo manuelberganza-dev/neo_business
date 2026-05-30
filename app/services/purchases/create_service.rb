@@ -12,6 +12,7 @@ module Purchases
         warehouse = Warehouse.find(attributes.fetch(:warehouse_id))
         ensure_same_store!(supplier)
         ensure_same_store!(warehouse)
+        ensure_active_warehouse!(warehouse)
 
         purchase = Purchase.create!(
           store: @store,
@@ -89,6 +90,12 @@ module Purchases
       return if record.store_id == @store.id
 
       raise ActiveRecord::RecordNotFound
+    end
+
+    def ensure_active_warehouse!(warehouse)
+      return if warehouse.active?
+
+      raise ApplicationError.new("Warehouse is inactive", code: "warehouse_inactive")
     end
 
     def next_purchase_number
