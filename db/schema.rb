@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_30_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_01_000000) do
   create_table "active_storage_attachments", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -236,6 +236,57 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_30_100000) do
     t.index ["store_id", "user_id", "read_at"], name: "index_notifications_on_store_id_and_user_id_and_read_at"
     t.index ["store_id"], name: "index_notifications_on_store_id"
     t.index ["user_id"], name: "index_notifications_on_user_id"
+  end
+
+  create_table "ocr_document_items", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.bigint "ocr_document_id", null: false
+    t.decimal "quantity", precision: 15, scale: 3, default: "0.0", null: false
+    t.bigint "store_id", null: false
+    t.decimal "tax_rate", precision: 6, scale: 4, default: "0.13", null: false
+    t.decimal "total", precision: 15, scale: 4, default: "0.0", null: false
+    t.decimal "unit_price", precision: 15, scale: 4, default: "0.0", null: false
+    t.datetime "updated_at", null: false
+    t.index ["ocr_document_id"], name: "index_ocr_document_items_on_ocr_document_id"
+    t.index ["store_id", "ocr_document_id"], name: "index_ocr_document_items_on_store_id_and_ocr_document_id"
+    t.index ["store_id"], name: "index_ocr_document_items_on_store_id"
+  end
+
+  create_table "ocr_documents", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+    t.decimal "confidence", precision: 5, scale: 4, default: "0.0", null: false
+    t.string "control_number"
+    t.datetime "created_at", null: false
+    t.string "currency", default: "USD", null: false
+    t.string "customer_name"
+    t.string "customer_nit"
+    t.string "customer_nrc"
+    t.decimal "discount", precision: 15, scale: 4, default: "0.0", null: false
+    t.string "document_number"
+    t.string "document_type"
+    t.string "generation_code"
+    t.datetime "issued_at"
+    t.string "photo_path"
+    t.json "raw_response"
+    t.integer "status", default: 0, null: false
+    t.bigint "store_id", null: false
+    t.decimal "subtotal", precision: 15, scale: 4, default: "0.0", null: false
+    t.string "supplier_activity"
+    t.text "supplier_address"
+    t.string "supplier_name"
+    t.string "supplier_nit"
+    t.string "supplier_nrc"
+    t.decimal "tax", precision: 15, scale: 4, default: "0.0", null: false
+    t.decimal "total", precision: 15, scale: 4, default: "0.0", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id"
+    t.datetime "verified_at"
+    t.json "warnings"
+    t.index ["store_id", "document_type", "document_number"], name: "idx_on_store_id_document_type_document_number_b6568a6b0b"
+    t.index ["store_id", "generation_code"], name: "index_ocr_documents_on_store_id_and_generation_code"
+    t.index ["store_id", "status"], name: "index_ocr_documents_on_store_id_and_status"
+    t.index ["store_id"], name: "index_ocr_documents_on_store_id"
+    t.index ["user_id"], name: "index_ocr_documents_on_user_id"
   end
 
   create_table "payment_methods", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
@@ -553,6 +604,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_30_100000) do
   add_foreign_key "invoices", "stores"
   add_foreign_key "notifications", "stores"
   add_foreign_key "notifications", "users"
+  add_foreign_key "ocr_document_items", "ocr_documents"
+  add_foreign_key "ocr_document_items", "stores"
+  add_foreign_key "ocr_documents", "stores"
+  add_foreign_key "ocr_documents", "users"
   add_foreign_key "payment_methods", "stores"
   add_foreign_key "payments", "payment_methods"
   add_foreign_key "payments", "sales"

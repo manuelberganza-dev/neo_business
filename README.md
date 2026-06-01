@@ -594,6 +594,119 @@ Respuesta resumida:
 }
 ```
 
+### Escanear Factura Con OCR
+
+Configura la integracion con variables de entorno. No subas el API key al repositorio; `.env*` ya esta ignorado por Git.
+
+```bash
+GEMINI_API_KEY=tu_api_key
+GEMINI_MODEL=gemini-flash-latest
+OCR_PHOTO_STORAGE_PATH=C:/Users/Manuel Berganza/Desktop/fotos_rails
+```
+
+`POST /api/v1/mobile/ocr/scan`
+
+Enviar como `multipart/form-data` desde Flutter:
+
+```json
+{
+  "scan": {
+    "photo": "<archivo>"
+  }
+}
+```
+
+La API guarda una copia local de la foto en `OCR_PHOTO_STORAGE_PATH`, envia esa imagen a Gemini Flash y devuelve los campos listos para pintar en el formulario:
+
+```json
+{
+  "ocr": {
+    "document_type": "CCF",
+    "document_number": "DTE-000123",
+    "control_number": "DTE-01-00000001",
+    "generation_code": "ABC-123",
+    "issued_at": "2026-06-01T10:00:00-06:00",
+    "supplier": {
+      "name": "Proveedor S.A. de C.V.",
+      "nit": "0614-000000-000-0",
+      "nrc": "123456-7",
+      "activity": "Venta",
+      "address": "San Salvador"
+    },
+    "customer": {
+      "name": "Cliente Demo",
+      "nit": null,
+      "nrc": null
+    },
+    "currency": "USD",
+    "subtotal": 10.0,
+    "tax": 1.3,
+    "discount": 0.0,
+    "total": 11.3,
+    "items": [
+      {
+        "description": "Producto",
+        "quantity": 1.0,
+        "unit_price": 10.0,
+        "tax_rate": 0.13,
+        "total": 11.3
+      }
+    ],
+    "confidence": 0.92,
+    "warnings": []
+  },
+  "photo": {
+    "reference": "20260601100000000000-abcd1234.jpg",
+    "original_filename": "factura.jpg"
+  }
+}
+```
+
+Cuando el usuario verifique los campos y toque guardar, Flutter debe enviar la version corregida:
+
+`POST /api/v1/mobile/ocr/documents`
+
+```json
+{
+  "ocr_document": {
+    "photo_reference": "20260601100000000000-abcd1234.jpg",
+    "document_type": "CCF",
+    "document_number": "DTE-000123",
+    "control_number": "DTE-01-00000001",
+    "generation_code": "ABC-123",
+    "issued_at": "2026-06-01T10:00:00-06:00",
+    "supplier": {
+      "name": "Proveedor S.A. de C.V.",
+      "nit": "0614-000000-000-0",
+      "nrc": "123456-7",
+      "activity": "Venta",
+      "address": "San Salvador"
+    },
+    "customer": {
+      "name": "Cliente Demo",
+      "nit": null,
+      "nrc": null
+    },
+    "currency": "USD",
+    "subtotal": 10.0,
+    "tax": 1.3,
+    "discount": 0.0,
+    "total": 11.3,
+    "items": [
+      {
+        "description": "Producto",
+        "quantity": 1.0,
+        "unit_price": 10.0,
+        "tax_rate": 0.13,
+        "total": 11.3
+      }
+    ],
+    "confidence": 0.92,
+    "warnings": []
+  }
+}
+```
+
 ### Abrir Caja
 
 `POST /api/v1/cash_sessions/open`

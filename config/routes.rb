@@ -51,6 +51,8 @@ Rails.application.routes.draw do
         post :void, on: :member
       end
       post "mobile/scan_product", to: "mobile#scan_product"
+      post "mobile/ocr/scan", to: "ocr_documents#scan"
+      post "mobile/ocr/documents", to: "ocr_documents#create"
       get "reports/daily_sales", to: "reports#daily_sales"
       get "reports/sales", to: "reports#sales"
       get "reports/sales_by_cashier", to: "reports#sales_by_cashier"

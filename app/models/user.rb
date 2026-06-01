@@ -13,6 +13,7 @@ class User < ApplicationRecord
   has_many :user_roles, dependent: :destroy
   has_many :roles, through: :user_roles
   has_many :auth_refresh_tokens, dependent: :destroy
+  has_many :ocr_documents, dependent: :nullify
 
   before_validation :ensure_jti, on: :create
 
