@@ -16,7 +16,12 @@ class ApplicationController < ActionController::API
   private
 
   def authenticate_user!
-    render json: { error: "unauthorized" }, status: :unauthorized unless current_user
+    return if current_user
+
+    render json: {
+      error: "unauthorized",
+      message: "Missing or invalid Authorization Bearer token"
+    }, status: :unauthorized
   end
 
   def current_user

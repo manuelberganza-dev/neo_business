@@ -51,25 +51,52 @@ module Ocr
 
     def initialize(
       api_key: ENV["GEMINI_API_KEY"],
-      model: Rails.application.config.x.ocr.gemini_model,
-      timeout: Rails.application.config.x.ocr.gemini_timeout
+      models: Rails.application.config.x.ocr.gemini_models,
+      timeout: Rails.application.config.x.ocr.gemini_timeout,
+      max_retries: Rails.application.config.x.ocr.gemini_max_retries,
+      retry_delay: Rails.application.config.x.ocr.gemini_retry_delay
     )
       @api_key = api_key.to_s
-      @model = model
+      @models = Array(models).map(&:presence).compact
       @timeout = timeout
+      @max_retries = [ max_retries.to_i, 0 ].max
+      @retry_delay = [ retry_delay.to_f, 0 ].max
     end
 
     def extract(image_path:, mime_type:)
       raise ApplicationError.new("GEMINI_API_KEY is not configured", code: "gemini_api_key_missing", status: :service_unavailable) if @api_key.blank?
 
-      response = perform_request(image_path: image_path, mime_type: mime_type)
-      parse_response(response)
+      with_gemini_retries do |model|
+        response = perform_request(model: model, image_path: image_path, mime_type: mime_type)
+        parse_response(response)
+      end
     end
 
     private
 
-    def perform_request(image_path:, mime_type:)
-      uri = URI("https://generativelanguage.googleapis.com/v1beta/models/#{@model}:generateContent")
+    def with_gemini_retries
+      last_error = nil
+
+      @models.each do |model|
+        (@max_retries + 1).times do |attempt|
+          return yield(model)
+        rescue ApplicationError => error
+          raise error unless retryable?(error)
+
+          last_error = error
+          sleep(@retry_delay * (attempt + 1)) if attempt < @max_retries
+        end
+      end
+
+      raise last_error
+    end
+
+    def retryable?(error)
+      %w[gemini_rate_limited gemini_unavailable gemini_timeout gemini_request_failed].include?(error.code)
+    end
+
+    def perform_request(model:, image_path:, mime_type:)
+      uri = URI("https://generativelanguage.googleapis.com/v1beta/models/#{model}:generateContent")
       request = Net::HTTP::Post.new(uri)
       request["Content-Type"] = "application/json"
       request["X-goog-api-key"] = @api_key
@@ -79,7 +106,7 @@ module Ocr
         http.request(request)
       end
     rescue Timeout::Error, SocketError, SystemCallError => error
-      raise ApplicationError.new("Gemini OCR request failed: #{error.message}", code: "gemini_request_failed", status: :bad_gateway)
+      raise ApplicationError.new("Gemini OCR request timed out: #{error.message}", code: "gemini_timeout", status: :gateway_timeout)
     end
 
     def request_payload(image_path:, mime_type:)
@@ -110,7 +137,7 @@ module Ocr
 
       unless response.is_a?(Net::HTTPSuccess)
         message = body.dig("error", "message") || "Gemini OCR request failed"
-        raise ApplicationError.new(message, code: "gemini_request_failed", status: :bad_gateway)
+        raise gemini_error(response, message)
       end
 
       text = Array(body.dig("candidates", 0, "content", "parts")).filter_map { |part| part["text"] }.join
@@ -119,6 +146,19 @@ module Ocr
       JSON.parse(clean_json_text(text))
     rescue JSON::ParserError => error
       raise ApplicationError.new("Gemini OCR response was not valid JSON: #{error.message}", code: "gemini_invalid_json", status: :bad_gateway)
+    end
+
+    def gemini_error(response, message)
+      case response
+      when Net::HTTPTooManyRequests
+        ApplicationError.new(message, code: "gemini_rate_limited", status: :too_many_requests)
+      when Net::HTTPServiceUnavailable
+        ApplicationError.new(message, code: "gemini_unavailable", status: :service_unavailable)
+      when Net::HTTPGatewayTimeOut
+        ApplicationError.new(message, code: "gemini_timeout", status: :gateway_timeout)
+      else
+        ApplicationError.new(message, code: "gemini_request_failed", status: :bad_gateway)
+      end
     end
 
     def clean_json_text(text)

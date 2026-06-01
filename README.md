@@ -601,12 +601,22 @@ Configura la integracion con variables de entorno. No subas el API key al reposi
 ```bash
 GEMINI_API_KEY=tu_api_key
 GEMINI_MODEL=gemini-flash-latest
+GEMINI_MODELS=gemini-flash-latest
+GEMINI_TIMEOUT=18
+GEMINI_MAX_RETRIES=0
+GEMINI_RETRY_DELAY=0.5
 OCR_PHOTO_STORAGE_PATH=C:/Users/Manuel Berganza/Desktop/fotos_rails
 ```
 
+`GEMINI_MODELS` acepta varios modelos separados por coma para fallback cuando Google responda con saturacion o limite temporal. Por ejemplo: `GEMINI_MODELS=gemini-flash-latest,gemini-2.0-flash`.
+
 `POST /api/v1/mobile/ocr/scan`
 
-Enviar como `multipart/form-data` desde Flutter:
+Enviar como `multipart/form-data` desde Flutter, incluyendo el mismo JWT que se obtiene en login:
+
+```http
+Authorization: Bearer TOKEN
+```
 
 ```json
 {
