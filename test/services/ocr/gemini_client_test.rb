@@ -37,5 +37,18 @@ module Ocr
       assert_equal "gemini_rate_limited", error.code
       assert_equal :too_many_requests, error.status
     end
+
+    test "uses default model when configured models are blank" do
+      client = GeminiClient.new(api_key: "test-key", models: [ "", nil ], max_retries: 0)
+
+      assert_equal [ "gemini-2.5-flash" ], client.instance_variable_get(:@models)
+    end
+
+    test "includes max output token limit in request payload" do
+      client = GeminiClient.new(api_key: "test-key", max_output_tokens: 2048)
+      payload = client.send(:request_payload, image_path: __FILE__, mime_type: "image/jpeg")
+
+      assert_equal 2048, payload.dig(:generationConfig, :maxOutputTokens)
+    end
   end
 end

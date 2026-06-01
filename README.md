@@ -1,6 +1,6 @@
 # Neo Business API
 
-API REST para un POS + inventario multi-sucursal pensado para negocios en El Salvador. La idea es que Rails haga el trabajo serio del backend y que Svelte y Flutter solo consuman endpoints limpios: web para administracion y dashboards, movil para caja rapida, escaneo e inventario.
+API REST para un POS + inventario multi-sucursal pensado para negocios en El Salvador. La idea es que Rails haga el trabajo serio del backend y que Nuxt v4 y Flutter solo consuman endpoints limpios: web para administracion y dashboards, movil para caja rapida, escaneo e inventario.
 
 Stack actual:
 
@@ -301,9 +301,9 @@ GET /notifications?event=purchase_received&from=2026-05-01&to=2026-05-30
 PATCH /notifications/read_all?unread=true
 ```
 
-## Ejemplos JSON Para Svelte
+## Ejemplos JSON Para Nuxt v4
 
-Svelte normalmente va a manejar administracion, catalogos y reportes.
+Nuxt v4 normalmente va a manejar administracion, catalogos y reportes.
 
 ### Login
 
@@ -345,7 +345,7 @@ Authorization: Bearer eyJhbGciOi...
 }
 ```
 
-Para imagen de producto, Svelte debe enviar `multipart/form-data` con el campo:
+Para imagen de producto, Nuxt v4 debe enviar `multipart/form-data` con el campo:
 
 ```text
 product[image]
@@ -600,15 +600,17 @@ Configura la integracion con variables de entorno. No subas el API key al reposi
 
 ```bash
 GEMINI_API_KEY=tu_api_key
-GEMINI_MODEL=gemini-flash-latest
-GEMINI_MODELS=gemini-flash-latest
-GEMINI_TIMEOUT=18
+GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODELS=gemini-2.5-flash,gemini-2.0-flash-lite
+GEMINI_TIMEOUT=45
 GEMINI_MAX_RETRIES=0
 GEMINI_RETRY_DELAY=0.5
+GEMINI_MAX_OUTPUT_TOKENS=4096
 OCR_PHOTO_STORAGE_PATH=C:/Users/Manuel Berganza/Desktop/fotos_rails
+DEVISE_JWT_EXPIRATION_HOURS=5
 ```
 
-`GEMINI_MODELS` acepta varios modelos separados por coma para fallback cuando Google responda con saturacion o limite temporal. Por ejemplo: `GEMINI_MODELS=gemini-flash-latest,gemini-2.0-flash`.
+`GEMINI_MODELS` acepta varios modelos separados por coma para fallback cuando Google responda con saturacion o limite temporal. Por ejemplo: `GEMINI_MODELS=gemini-2.5-flash,gemini-2.0-flash-lite`.
 
 `POST /api/v1/mobile/ocr/scan`
 
@@ -995,7 +997,7 @@ Respuesta resumida:
 
 ## Flujo Recomendado Web + Movil
 
-Svelte:
+Nuxt v4:
 
 1. Login.
 2. Crear tienda/sucursal/bodega/caja.

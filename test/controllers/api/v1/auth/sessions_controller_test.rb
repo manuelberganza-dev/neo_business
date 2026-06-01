@@ -49,6 +49,8 @@ module Api
           assert_response :success
           assert_predicate response.headers["Authorization"], :present?
           assert_equal @user.email, response.parsed_body.dig("user", "email")
+          payload = Warden::JWTAuth::TokenDecoder.new.call(response.headers["Authorization"].split.last)
+          assert_in_delta 5.hours.to_i, payload.fetch("exp") - payload.fetch("iat"), 2
 
           get api_v1_me_path,
             headers: { "Authorization" => response.headers["Authorization"] },

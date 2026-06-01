@@ -4,6 +4,8 @@ require "net/http"
 
 module Ocr
   class GeminiClient
+    DEFAULT_MODEL = "gemini-2.5-flash"
+
     PROMPT = <<~PROMPT.freeze
       Extrae los datos fiscales y comerciales de esta imagen de una factura, CCF, ticket o DTE de El Salvador.
 
@@ -54,13 +56,16 @@ module Ocr
       models: Rails.application.config.x.ocr.gemini_models,
       timeout: Rails.application.config.x.ocr.gemini_timeout,
       max_retries: Rails.application.config.x.ocr.gemini_max_retries,
-      retry_delay: Rails.application.config.x.ocr.gemini_retry_delay
+      retry_delay: Rails.application.config.x.ocr.gemini_retry_delay,
+      max_output_tokens: Rails.application.config.x.ocr.gemini_max_output_tokens
     )
       @api_key = api_key.to_s
-      @models = Array(models).map(&:presence).compact
+      @models = Array(models).flat_map { |model| model.to_s.split(",") }.map(&:strip).reject(&:blank?)
+      @models = [ DEFAULT_MODEL ] if @models.empty?
       @timeout = timeout
       @max_retries = [ max_retries.to_i, 0 ].max
       @retry_delay = [ retry_delay.to_f, 0 ].max
+      @max_output_tokens = [ max_output_tokens.to_i, 512 ].max
     end
 
     def extract(image_path:, mime_type:)
@@ -127,6 +132,7 @@ module Ocr
         ],
         generationConfig: {
           response_mime_type: "application/json",
+          maxOutputTokens: @max_output_tokens,
           temperature: 0.1
         }
       }

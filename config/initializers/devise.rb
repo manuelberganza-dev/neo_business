@@ -279,7 +279,7 @@ Devise.setup do |config|
     jwt.revocation_requests = [
       [ "DELETE", %r{^/api/v1/auth/logout$} ]
     ]
-    jwt.expiration_time = 15.minutes.to_i
+    jwt.expiration_time = ENV.fetch("DEVISE_JWT_EXPIRATION_HOURS", "5").to_i.hours.to_i
   end
 
   # ==> OmniAuth
